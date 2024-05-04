@@ -5,7 +5,9 @@ import com.tan.pojo.ResponseResult;
 import com.tan.pojo.User;
 import com.tan.service.ServiceLogin;
 import com.tan.utils.JwtUtil;
+import com.tan.utils.RedisCache;
 import lombok.extern.java.Log;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -21,13 +23,16 @@ import java.util.Objects;
  * Created by TanLiangJie
  * Time:2024/5/4 下午2:28
  */
+@Slf4j
 @Service
 public class ServiceLoginImpl implements ServiceLogin {
 
-    //EnableWebSercurity做的
+
     @Autowired
     private AuthenticationManager authenticationManager;
 
+    @Autowired
+    private RedisCache redisCache;
 
     /**
      * 登录
@@ -37,18 +42,23 @@ public class ServiceLoginImpl implements ServiceLogin {
 
     @Override
     public ResponseResult login(User user) {
+
         //对登录用户进行认证
         UsernamePasswordAuthenticationToken upad = new UsernamePasswordAuthenticationToken(user.getUserName(),user.getPassword());
         Authentication authenticate = authenticationManager.authenticate(upad);
+
         //不正确,返回错误信息
         if (Objects.isNull(authenticate)){
             throw new RuntimeException("用户名或者密码错误");
         }
 
-        //正确,存入redis,userid作为key,用户信息作为value
         //获取用户id
         LoginUser loginUser = (LoginUser) authenticate.getPrincipal();
         String userid = loginUser.getUser().getId().toString();
+
+        //正确,存入redis,userid作为key,用户信息作为value
+        //authenticate存入redis
+        redisCache.setCacheObject("login:"+userid,loginUser);
 
         //生成jwt
         String jwt = JwtUtil.createJWT(userid);
